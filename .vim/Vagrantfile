@@ -1,0 +1,55 @@
+ENV['VAGRANT_DEFAULT_PROVIDER'] = 'vcenter'
+
+
+# Put your VI email & AD password here
+USER_EMAIL = "my.username@virtualinstruments.com"  # ex: "barry.cooks@virtualinstruments.com"
+USER_PASSWORD = ENV['VI_PASS']  # Put your AD password into an environment variable
+
+# VM Hardware Customization
+VM_CPUS = 4
+VM_RAM_IN_GB = 16
+
+
+Vagrant.configure('2') do |config|
+
+    config.vm.box = "vw-52-29"
+    config.vm.box_url = "http://artifacts.vi.local/builds/feature-branch/probenas/aruba-images/aruba-images-52/vagrant/vmware/vcenter/portal_appliance.vcenter.52-29.box"
+    config.vm.post_up_message = "Virtual Wisdom Portal Appliance build #52"
+
+
+    # *** DO NOT CHANGE ANYTHING BELOW HERE ***
+
+    # Configure VM's hostname upon first boot. Needed for Vertica.
+    #
+    # DO-524 - the "configure-hostname" command needs to talk to a REST API
+    # running in the guest OS in order to complete successfully.  We need to wait
+    # for that service to become available on port 8390 before running the command
+    config.vm.provision :shell, :inline => "while netstat -lnt "\
+        "| awk '$4 ~ /:8390$/ {exit 1}'; do echo "\
+        "'Waiting for tcp port 8390 availability before running configure-hostname';"\
+        "sleep 5; done && /usr/local/bin/configure-hostname"
+
+    config.vm.provider :vcenter do |vcenter|
+        vcenter.hostname = 'vi-devops-vc1.lab.vi.local'
+        vcenter.username = USER_EMAIL
+        vcenter.password = USER_PASSWORD
+
+        # vCenter inventory settings
+        vcenter.folder_name = 'vagrant'
+        vcenter.datacenter_name = 'DC1'
+        vcenter.computer_name = 'devops-R610'
+        vcenter.datastore_name = 'devops_prd01'
+        vcenter.network_name = 'dv-net-2'
+        vcenter.linked_clones = true
+        vcenter.template_folder_name = 'vagrant'
+        vcenter.resourcepool_name = 'vagrant'
+
+        # VM resources
+        vcenter.num_cpu = VM_CPUS
+        vcenter.memory = VM_RAM_IN_GB * 1024  # needs to be assigned in MB
+    end
+
+    config.vm.network :public_network
+    config.nfs.functional = false
+
+end
